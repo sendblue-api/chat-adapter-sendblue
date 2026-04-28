@@ -16,6 +16,13 @@ export interface SendblueAdapterConfig {
    * @default ["iMessage"]
    */
   allowedServices?: SendblueService[];
+  /**
+   * Whether inbound messages should automatically send read receipts.
+   * @default false
+   *
+   * When false, call `adapter.sendReadReceipt(threadId)` explicitly from your app logic.
+   */
+  sendReadReceipts?: boolean;
 }
 
 export type SendblueService = "iMessage" | "SMS" | "RCS" | "sms";

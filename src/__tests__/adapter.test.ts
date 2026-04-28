@@ -247,6 +247,34 @@ describe("SendblueAdapter", () => {
   // -------------------------------------------------------------------------
 
   describe("handleWebhook", () => {
+    const mockChat = {
+      getLogger: () => ({
+        child: () => ({
+          debug: () => {},
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+        }),
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }),
+      getState: () => ({}) as never,
+      getUserName: () => "bot",
+      handleIncomingMessage: mock(async () => {}),
+      processAction: mock(async () => {}),
+      processAppHomeOpened: mock(() => {}),
+      processAssistantContextChanged: mock(() => {}),
+      processAssistantThreadStarted: mock(() => {}),
+      processMemberJoinedChannel: mock(() => {}),
+      processMessage: mock(() => {}),
+      processModalClose: mock(() => {}),
+      processModalSubmit: mock(async () => undefined),
+      processReaction: mock(() => {}),
+      processSlashCommand: mock(async () => {}),
+    };
+
     test("rejects request with wrong webhook secret", async () => {
       const adapter = createAdapter();
       const request = new Request("https://example.com/webhook", {
@@ -284,6 +312,37 @@ describe("SendblueAdapter", () => {
       const response = await adapter.handleWebhook(request);
 
       expect(response.status).toBe(400);
+    });
+
+    test("does not auto-send read receipt when sendReadReceipts is false", async () => {
+      const adapter = createAdapter();
+      await adapter.initialize(mockChat as never);
+
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "test-webhook-secret" },
+        body: JSON.stringify(makePayload()),
+      });
+
+      await adapter.handleWebhook(request);
+
+      expect(postMock).not.toHaveBeenCalled();
+    });
+
+    test("auto-sends read receipt when sendReadReceipts is true", async () => {
+      const adapter = createAdapter({ sendReadReceipts: true });
+      await adapter.initialize(mockChat as never);
+
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "test-webhook-secret" },
+        body: JSON.stringify(makePayload()),
+      });
+
+      await adapter.handleWebhook(request);
+
+      expect(postMock).toHaveBeenCalledTimes(1);
+      expect((postMock.mock.calls as unknown[][])[0]?.[0]).toBe("/api/mark-read");
     });
   });
 

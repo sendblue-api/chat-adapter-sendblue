@@ -43,7 +43,7 @@ export class SendblueAdapter
 
   constructor(config: SendblueAdapterConfig & { logger?: Logger }) {
     this.config = config;
-    this.userName = "midday";
+    this.userName = config.userName ?? "";
     this.logger = config.logger ?? new ConsoleLogger();
     this.sdk = new SendblueAPI({
       apiKey: config.apiKey,

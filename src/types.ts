@@ -4,6 +4,7 @@ export interface SendblueAdapterConfig {
   apiKey: string;
   apiSecret: string;
   defaultFromNumber: string;
+  userName?: string;
   webhookSecret?: string;
   /**
    * Header name Sendblue uses to deliver the webhook secret.

@@ -291,6 +291,16 @@ describe("SendblueAdapter", () => {
   // channelIdFromThreadId
   // -------------------------------------------------------------------------
 
+  test("defaults userName to empty string for chat fallback", () => {
+    const adapter = createAdapter();
+    expect(adapter.userName).toBe("");
+  });
+
+  test("allows explicit userName override", () => {
+    const adapter = createAdapter({ userName: "midday" });
+    expect(adapter.userName).toBe("midday");
+  });
+
   test("channelIdFromThreadId returns adapter:from prefix", () => {
     const adapter = createAdapter();
     const threadId = adapter.encodeThreadId({

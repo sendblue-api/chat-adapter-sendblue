@@ -42,6 +42,7 @@ export function createSendblueAdapter(
     apiKey,
     apiSecret,
     defaultFromNumber,
+    userName: config?.userName,
     webhookSecret: config?.webhookSecret ?? process.env.SENDBLUE_WEBHOOK_SECRET,
     webhookSecretHeader: config?.webhookSecretHeader,
     statusCallbackUrl:

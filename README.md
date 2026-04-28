@@ -131,11 +131,19 @@ const result = await adapter.evaluateService("+15551234567");
 
 ### Read receipts
 
-Send read receipts for a conversation (requires Sendblue account-level activation):
+Automatic inbound read receipts are disabled by default. Enable them:
+
+```ts
+createSendblueAdapter({
+  sendReadReceipts: true,
+});
+```
+
+Or send one explicitly for a conversation (requires Sendblue account-level activation):
 
 ```ts
 const adapter = chat.getAdapter("sendblue") as SendblueAdapter;
-await adapter.markRead(threadId);
+await adapter.sendReadReceipt(threadId);
 ```
 
 ### Direct SDK access

@@ -8,8 +8,11 @@ export type {
   SendblueAdapterConfig,
   SendblueMessagePayload,
   SendblueReaction,
+  SendblueReplyTarget,
+  SendblueReplyTo,
   SendblueService,
   SendblueThreadId,
+  SendblueThreadOriginator,
   SendblueTypingPayload,
 } from "./types";
 export { REACTION_ALIASES, VALID_REACTIONS } from "./types";

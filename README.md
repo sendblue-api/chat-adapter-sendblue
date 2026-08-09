@@ -111,6 +111,23 @@ iMessage tapbacks are supported via `addReaction`. The adapter maps common emoji
 | `emphasize` | `exclamation`, `!!` |
 | `question` | `?` |
 
+### Inline replies
+
+Inbound messages expose Sendblue's `reply_to` and `thread_originator` metadata
+on `message.raw`. To send an inline reply, pass the exact Sendblue
+`message_handle` as the optional third argument to `postMessage`:
+
+```ts
+const adapter = chat.getAdapter("sendblue") as SendblueAdapter;
+await adapter.postMessage(threadId, "Following up", {
+  message_handle: inboundMessage.raw.message_handle,
+});
+```
+
+The target must belong to the same Sendblue account, conversation, and sending
+line. The adapter does not invent message handles or downgrade a rejected reply
+to a standalone message.
+
 ### Typing indicators
 
 `startTyping()` sends the animated "..." bubble to the recipient. Only supported for 1:1 conversations (not group chats).

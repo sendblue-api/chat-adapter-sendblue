@@ -21,6 +21,7 @@ import type {
   SendblueAdapterConfig,
   SendblueMessagePayload,
   SendblueReaction,
+  SendblueReplyTarget,
   SendblueThreadId,
   SendblueTypingPayload,
 } from "./types";
@@ -236,6 +237,7 @@ export class SendblueAdapter
   async postMessage(
     threadId: string,
     message: AdapterPostableMessage,
+    replyTo?: SendblueReplyTarget,
   ): Promise<RawMessage<SendblueMessagePayload>> {
     const decoded = this.decodeThreadId(threadId);
     const text = this.renderOutbound(message);
@@ -249,6 +251,18 @@ export class SendblueAdapter
       };
     }
 
+    if (
+      replyTo &&
+      (typeof replyTo.message_handle !== "string" ||
+        replyTo.message_handle.trim().length === 0)
+    ) {
+      throw new Error("Sendblue reply target must have a message_handle");
+    }
+
+    const reply = replyTo
+      ? { reply_to: { message_handle: replyTo.message_handle } }
+      : {};
+
     let response: SendblueAPI.MessageResponse;
 
     if (decoded.groupId) {
@@ -256,6 +270,7 @@ export class SendblueAdapter
         from_number: decoded.fromNumber,
         content: text,
         group_id: decoded.groupId,
+        ...reply,
       });
     } else {
       response = await this.sdk.messages.send({
@@ -264,6 +279,7 @@ export class SendblueAdapter
         content: text,
         media_url: undefined,
         status_callback: this.config.statusCallbackUrl,
+        ...reply,
       });
     }
 

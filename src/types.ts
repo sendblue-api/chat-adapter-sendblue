@@ -26,6 +26,20 @@ export interface SendblueThreadId {
   groupId?: string;
 }
 
+export interface SendblueReplyTarget {
+  message_handle: string;
+}
+
+export interface SendblueReplyTo extends SendblueReplyTarget {
+  /** Server-reported only. Do not send this value when creating a reply. */
+  part_index?: number;
+}
+
+export interface SendblueThreadOriginator extends SendblueReplyTarget {
+  /** Opaque Apple thread-originator metadata reported by Sendblue. */
+  part?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Inbound webhook payload shapes (not fully covered by the SDK's types)
 // ---------------------------------------------------------------------------
@@ -56,6 +70,8 @@ export interface SendblueMessagePayload {
   sendblue_number: string | null;
   service: string;
   group_display_name: string | null;
+  reply_to?: SendblueReplyTo;
+  thread_originator?: SendblueThreadOriginator;
 }
 
 export interface SendblueTypingPayload {

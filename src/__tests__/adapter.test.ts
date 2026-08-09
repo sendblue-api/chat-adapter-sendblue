@@ -121,6 +121,28 @@ describe("SendblueAdapter", () => {
       expect(msg.attachments).toHaveLength(0);
     });
 
+    test("preserves Sendblue inline-reply metadata", () => {
+      const adapter = createAdapter();
+      const payload = makePayload({
+        reply_to: { message_handle: "msg_parent", part_index: 0 },
+        thread_originator: {
+          message_handle: "msg_root",
+          part: "opaque-apple-part",
+        },
+      });
+
+      const msg = adapter.parseMessage(payload);
+
+      expect(msg.raw.reply_to).toEqual({
+        message_handle: "msg_parent",
+        part_index: 0,
+      });
+      expect(msg.raw.thread_originator).toEqual({
+        message_handle: "msg_root",
+        part: "opaque-apple-part",
+      });
+    });
+
     test("parses media_url as HTTP attachment", () => {
       const adapter = createAdapter();
       const payload = makePayload({
@@ -171,6 +193,59 @@ describe("SendblueAdapter", () => {
       expect(args.number).toBe("+14155551234");
       expect(args.from_number).toBe("+13137386158");
       expect(args.content).toBe("Hello!");
+      expect(args).not.toHaveProperty("reply_to");
+    });
+
+    test("sends a 1:1 reply to the exact Sendblue message handle", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      await adapter.postMessage(threadId, "Reply", {
+        message_handle: "msg_parent",
+      });
+
+      expect(sendMock).toHaveBeenCalledTimes(1);
+      const args = (sendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.reply_to).toEqual({ message_handle: "msg_parent" });
+    });
+
+    test("sends a group reply to the exact Sendblue message handle", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        groupId: "group_xyz",
+      });
+
+      await adapter.postMessage(threadId, "Reply", {
+        message_handle: "msg_group_parent",
+      });
+
+      expect(groupSendMock).toHaveBeenCalledTimes(1);
+      const args = (groupSendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.reply_to).toEqual({ message_handle: "msg_group_parent" });
+    });
+
+    test("rejects an empty reply target without sending", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      expect(
+        adapter.postMessage(threadId, "Reply", { message_handle: "  " }),
+      ).rejects.toThrow("must have a message_handle");
+
+      expect(sendMock).not.toHaveBeenCalled();
     });
 
     test("skips sending empty content", async () => {

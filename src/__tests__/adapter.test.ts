@@ -9,9 +9,14 @@ const groupSendMock = mock(() =>
 );
 const postMock = mock(() => Promise.resolve({}));
 const listMock = mock(() => Promise.resolve({ data: [] }));
+const sdkConstructorMock = mock();
 
 mock.module("sendblue", () => ({
   default: class FakeSendblue {
+    constructor(options: unknown) {
+      sdkConstructorMock(options);
+    }
+
     messages = { send: sendMock, list: listMock };
     groups = { sendMessage: groupSendMock };
     lookups = { lookupNumber: mock(() => Promise.resolve({})) };
@@ -21,15 +26,32 @@ mock.module("sendblue", () => ({
 }));
 
 const { SendblueAdapter } = await import("../adapter");
+const { createSendblueAdapter } = await import("../index");
 
 function createAdapter(overrides: Record<string, unknown> = {}) {
-  return new SendblueAdapter({
+  return createSendblueAdapter({
     apiKey: "test-key",
     apiSecret: "test-secret",
     defaultFromNumber: "+13137386158",
     webhookSecret: "test-webhook-secret",
     ...overrides,
   });
+}
+
+function installChatProcessMessageSpy(
+  adapter: InstanceType<typeof SendblueAdapter>,
+) {
+  const processMessage = mock(() => Promise.resolve());
+  adapter.initialize({
+    getLogger: () => ({
+      debug: () => {},
+      error: () => {},
+      info: () => {},
+      warn: () => {},
+    }),
+    processMessage,
+  } as never);
+  return processMessage;
 }
 
 function makePayload(
@@ -69,6 +91,116 @@ describe("SendblueAdapter", () => {
     groupSendMock.mockClear();
     postMock.mockClear();
     listMock.mockClear();
+    sdkConstructorMock.mockClear();
+  });
+
+  test("requires a sending line", () => {
+    expect(() =>
+      createSendblueAdapter({
+        accessToken: "connect-token",
+      }),
+    ).toThrow("Sendblue from_number is required");
+  });
+
+  test("resolves a lazy access token only when an SDK operation needs it", async () => {
+    const accessToken = mock(() => "connect-token");
+    const adapter = createSendblueAdapter({
+      accessToken,
+      defaultFromNumber: "+13137386158",
+      allowedFromNumbers: ["+13137386158"],
+    });
+
+    expect(accessToken).not.toHaveBeenCalled();
+    await adapter.createSdk();
+    expect(accessToken).toHaveBeenCalledTimes(1);
+  });
+
+  test("validates a lazy access token when an SDK operation needs it", async () => {
+    const adapter = createSendblueAdapter({
+      accessToken: () => "",
+      defaultFromNumber: "+13137386158",
+      allowedFromNumbers: ["+13137386158"],
+    });
+
+    await expect(adapter.createSdk()).rejects.toThrow(
+      "Sendblue access token is required",
+    );
+  });
+
+  test("uses the official SDK with key-pair credentials", () => {
+    const adapter = createAdapter();
+
+    adapter.getSdk();
+
+    expect(sdkConstructorMock).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      apiSecret: "test-secret",
+    });
+  });
+
+  test("rejects an empty direct bearer token", () => {
+    expect(() =>
+      createSendblueAdapter({
+        accessToken: "",
+        defaultFromNumber: "+13137386158",
+      }),
+    ).toThrow("Sendblue access token is required");
+  });
+
+  test("uses the official SDK with a direct bearer token", () => {
+    const adapter = createSendblueAdapter({
+      accessToken: "connect-token",
+      defaultFromNumber: "+13137386158",
+      allowedFromNumbers: ["+13137386158"],
+    });
+
+    adapter.getSdk();
+
+    expect(sdkConstructorMock).toHaveBeenCalledWith({
+      accessToken: "connect-token",
+    });
+  });
+
+  test("getSdk returns the stable client for direct credentials", () => {
+    const adapter = createAdapter();
+
+    expect(adapter.getSdk()).toBe(adapter.getSdk());
+  });
+
+  test("getSdk rejects a lazy access token", () => {
+    const adapter = createSendblueAdapter({
+      accessToken: () => "connect-token",
+      defaultFromNumber: "+13137386158",
+    });
+
+    expect(() => adapter.getSdk()).toThrow(
+      "getSdk() is unavailable with a lazy accessToken; use await createSdk() instead.",
+    );
+  });
+
+  test("resolves a rotating bearer token for every operation", async () => {
+    let tokenNumber = 0;
+    const accessToken = mock(() => `token-${++tokenNumber}`);
+    const adapter = createSendblueAdapter({
+      accessToken,
+      defaultFromNumber: "+13137386158",
+      allowedFromNumbers: ["+13137386158"],
+    });
+    const threadId = adapter.encodeThreadId({
+      fromNumber: "+13137386158",
+      contactNumber: "+14155551234",
+    });
+
+    await adapter.postMessage(threadId, "First");
+    await adapter.postMessage(threadId, "Second");
+
+    expect(accessToken).toHaveBeenCalledTimes(2);
+    expect(sdkConstructorMock).toHaveBeenNthCalledWith(1, {
+      accessToken: "token-1",
+    });
+    expect(sdkConstructorMock).toHaveBeenNthCalledWith(2, {
+      accessToken: "token-2",
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -239,6 +371,7 @@ describe("SendblueAdapter", () => {
       await adapter.sendMediaMessage(threadId, "https://example.com/file.vcf");
 
       expect(sendMock).not.toHaveBeenCalled();
+      expect(groupSendMock).not.toHaveBeenCalled();
     });
   });
 
@@ -260,8 +393,21 @@ describe("SendblueAdapter", () => {
       expect(response.status).toBe(401);
     });
 
-    test("accepts request with correct webhook secret", async () => {
+    test("rejects a bad secret without reading an already-consumed body", async () => {
       const adapter = createAdapter();
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "wrong-secret" },
+        body: JSON.stringify(makePayload()),
+      });
+      await request.text();
+
+      expect((await adapter.handleWebhook(request)).status).toBe(401);
+    });
+
+    test("dispatches an event for the configured Sendblue line", async () => {
+      const adapter = createAdapter();
+      const processMessage = installChatProcessMessageSpy(adapter);
       const request = new Request("https://example.com/webhook", {
         method: "POST",
         headers: { "sb-signing-secret": "test-webhook-secret" },
@@ -271,6 +417,94 @@ describe("SendblueAdapter", () => {
       const response = await adapter.handleWebhook(request);
 
       expect(response.status).toBe(200);
+      expect(processMessage).toHaveBeenCalledTimes(1);
+    });
+
+    test("uses webhookVerifier before parsing and instead of the shared secret", async () => {
+      const verify = mock(
+        (_request: Request, rawBody: string) => rawBody === "{} ",
+      );
+      const adapter = createAdapter({ webhookVerifier: verify });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "wrong-secret" },
+        body: "{} ",
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(200);
+      expect(verify).toHaveBeenCalledWith(expect.any(Request), "{} ");
+    });
+
+    test("gives webhookVerifier a readable request body", async () => {
+      const adapter = createAdapter({
+        webhookVerifier: async (request, rawBody) =>
+          (await request.text()) === rawBody,
+      });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        body: "{}",
+      });
+
+      expect((await adapter.handleWebhook(request)).status).toBe(200);
+    });
+
+    test("rejects a webhookVerifier failure before parsing", async () => {
+      const adapter = createAdapter({ webhookVerifier: () => false });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        body: "not json",
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(401);
+    });
+
+    test("returns a response from webhookVerifier", async () => {
+      const adapter = createAdapter({
+        webhookVerifier: () => new Response("forbidden", { status: 403 }),
+      });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        body: "{}",
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(403);
+    });
+
+    test("fails closed when webhookVerifier throws", async () => {
+      const adapter = createAdapter({
+        webhookVerifier: () => {
+          throw new Error("invalid OIDC token");
+        },
+      });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        body: "{}",
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(401);
+    });
+
+    test("fails closed when webhookVerifier rejects", async () => {
+      const adapter = createAdapter({
+        webhookVerifier: async () =>
+          Promise.reject(new Error("invalid OIDC token")),
+      });
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        body: "{}",
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(401);
     });
 
     test("returns 400 for invalid JSON body", async () => {
@@ -284,6 +518,56 @@ describe("SendblueAdapter", () => {
       const response = await adapter.handleWebhook(request);
 
       expect(response.status).toBe(400);
+    });
+
+    test("does not resolve the access token while handling an inbound webhook", async () => {
+      const accessToken = mock(() => "connect-token");
+      const adapter = createSendblueAdapter({
+        accessToken,
+        defaultFromNumber: "+13137386158",
+        allowedFromNumbers: ["+13137386158"],
+        webhookSecret: "test-webhook-secret",
+      });
+      const processMessage = installChatProcessMessageSpy(adapter);
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "test-webhook-secret" },
+        body: JSON.stringify(makePayload()),
+      });
+
+      expect((await adapter.handleWebhook(request)).status).toBe(200);
+      expect(processMessage).toHaveBeenCalledTimes(1);
+      expect(accessToken).not.toHaveBeenCalled();
+    });
+
+    test("does not dispatch events for a different Sendblue line", async () => {
+      const adapter = createAdapter();
+      const processMessage = installChatProcessMessageSpy(adapter);
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "test-webhook-secret" },
+        body: JSON.stringify(makePayload({ to_number: "+19995550123" })),
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(200);
+      expect(processMessage).not.toHaveBeenCalled();
+    });
+
+    test("dispatches events for explicitly allowed Sendblue lines", async () => {
+      const adapter = createAdapter({ allowedFromNumbers: ["+19995550123"] });
+      const processMessage = installChatProcessMessageSpy(adapter);
+      const request = new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "sb-signing-secret": "test-webhook-secret" },
+        body: JSON.stringify(makePayload({ to_number: "+19995550123" })),
+      });
+
+      const response = await adapter.handleWebhook(request);
+
+      expect(response.status).toBe(200);
+      expect(processMessage).toHaveBeenCalledTimes(1);
     });
   });
 

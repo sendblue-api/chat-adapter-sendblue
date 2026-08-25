@@ -124,7 +124,10 @@ export class SendblueAdapter implements Adapter<
     let verifierRequest: Request | undefined;
     let rawBody: string;
     try {
-      verifierRequest = verifier ? request.clone() : undefined;
+      // Bun augments the global Request type with runtime-only helpers that
+      // Node's standards-compliant Request clone does not declare. The clone
+      // still satisfies the Web Request surface consumed by the verifier.
+      verifierRequest = verifier ? (request.clone() as Request) : undefined;
       rawBody = await request.text();
     } catch {
       return new Response("Bad Request", { status: 400 });

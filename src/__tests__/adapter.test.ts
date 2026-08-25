@@ -439,7 +439,7 @@ describe("SendblueAdapter", () => {
 
     test("gives webhookVerifier a readable request body", async () => {
       const adapter = createAdapter({
-        webhookVerifier: async (request, rawBody) =>
+        webhookVerifier: async (request: Request, rawBody: string) =>
           (await request.text()) === rawBody,
       });
       const request = new Request("https://example.com/webhook", {

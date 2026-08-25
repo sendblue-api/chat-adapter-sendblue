@@ -1,6 +1,6 @@
 {
   "name": "chat-adapter-sendblue",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Sendblue (iMessage/SMS) adapter for Chat SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -29,6 +29,7 @@
     "sendblue": "^3.12.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.13",
     "@types/node": "^22.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
@@ -43,12 +44,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/midday-ai/midday.git",
-    "directory": "packages/chat-adapter-sendblue"
+    "url": "git+https://github.com/sendblue-api/chat-adapter-sendblue.git"
   },
-  "homepage": "https://github.com/midday-ai/midday/tree/main/packages/chat-adapter-sendblue#readme",
+  "homepage": "https://github.com/sendblue-api/chat-adapter-sendblue#readme",
   "bugs": {
-    "url": "https://github.com/midday-ai/midday/issues"
+    "url": "https://github.com/sendblue-api/chat-adapter-sendblue/issues"
   },
   "publishConfig": {
     "access": "public"

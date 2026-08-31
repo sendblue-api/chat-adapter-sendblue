@@ -253,7 +253,7 @@ export class SendblueAdapter implements Adapter<
         dateSent: new Date(raw.date_sent),
         edited: false,
       },
-      isMention: !raw.is_outbound,
+      isMention: false,
       attachments,
     });
   }

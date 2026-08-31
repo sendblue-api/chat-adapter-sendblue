@@ -279,6 +279,15 @@ describe("SendblueAdapter", () => {
       expect(msg.attachments[0]!.mimeType).toBe("image/png");
       expect(msg.attachments[0]!.data).toBeInstanceOf(Buffer);
     });
+
+    test("sets isMention false for inbound and outbound", () => {
+      const adapter = createAdapter();
+      const inbound = adapter.parseMessage(makePayload({ is_outbound: false }));
+      const outbound = adapter.parseMessage(makePayload({ is_outbound: true }));
+
+      expect(inbound.isMention).toBe(false);
+      expect(outbound.isMention).toBe(false);
+    });
   });
 
   // -------------------------------------------------------------------------

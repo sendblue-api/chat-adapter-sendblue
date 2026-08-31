@@ -1,0 +1,14 @@
+# Execution-sensitive files. Changes here run code on CI runners and on
+# developer machines, so they need review from the owners below (PLAT-5343).
+# Owners are this repo's maintainers with write access.
+# Enforcement requires a pull-request rule with "Require review from Code
+# Owners" on the branch ruleset. This repo has no pull-request rule yet.
+
+# CI workflows, git hooks, editor-run tasks
+/.github/                         @Surebob
+/.husky/                          @Surebob
+/.vscode/                         @Surebob
+
+# Dependency manifests and package-manager configuration
+/package.json                     @Surebob
+/pnpm-lock.yaml                   @Surebob

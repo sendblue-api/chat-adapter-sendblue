@@ -97,6 +97,14 @@ export class SendblueAdapter implements Adapter<
     };
   }
 
+  isDM(threadId: string): boolean {
+    try {
+      return !this.decodeThreadId(threadId).groupId;
+    } catch {
+      return false;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Webhook handling
   // ---------------------------------------------------------------------------

@@ -235,6 +235,28 @@ describe("SendblueAdapter", () => {
     });
   });
 
+  describe("isDM", () => {
+    test("returns true for 1:1 thread IDs", () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      expect(adapter.isDM(threadId)).toBe(true);
+    });
+
+    test("returns false for group thread IDs", () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        groupId: "group_xyz",
+      });
+
+      expect(adapter.isDM(threadId)).toBe(false);
+    });
+  });
+
   // -------------------------------------------------------------------------
   // parseMessage
   // -------------------------------------------------------------------------
